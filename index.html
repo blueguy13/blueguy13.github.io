@@ -1,0 +1,80 @@
+<html>
+  <base href="https://example.com">
+  <head>
+    <meta charset="UTF-8">
+    <title>Tower War Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        font-family: Arial, sans-serif;
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        text-align: center;
+        animation: backgroundAnimation 10s infinite alternate;
+      }
+      h1 {
+        font-size: 3em;
+        margin-bottom: 50px;
+        animation: fadeIn 2s ease-out;
+      }
+      .options {
+        display: flex;
+        gap: 30px;
+      }
+      .btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid #fff;
+        padding: 20px 40px;
+        border-radius: 15px;
+        text-decoration: none;
+        color: #fff;
+        font-size: 1.2em;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: background 0.3s, transform 0.3s;
+      }
+      .btn:hover {
+        background: rgba(255, 255, 255, 0.4);
+        transform: scale(1.05);
+      }
+      svg {
+        width: 24px;
+        height: 24px;
+        fill: #fff;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes backgroundAnimation {
+        0% { background: linear-gradient(135deg, #1e3c72, #2a5298); }
+        100% { background: linear-gradient(135deg, #2a5298, #1e3c72); }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tower War Game</h1>
+    <div class="options">
+      <a href="https://example.com/pc.html" class="btn">
+        <svg viewBox="0 0 64 64">
+          <path d="M8 48h48v-4H8v4zm0-10h48v-26H8v26zm0-32h48v-4H8v4z"/>
+        </svg>
+        Play on PC
+      </a>
+      <a href="https://example.com/phone.html" class="btn">
+        <svg viewBox="0 0 64 64">
+          <path d="M20 4h24a4 4 0 014 4v48a4 4 0 01-4 4H20a4 4 0 01-4-4V8a4 4 0 014-4zM22 10v44h20V10H22z"/>
+        </svg>
+        Play on Phone
+      </a>
+    </div>
+  </body>
+</html>
