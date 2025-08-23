@@ -20,12 +20,41 @@ class Garden {
             sakura: { emoji: '🌸', growTime: 8000, water: 18, cost: 50000, sellMin: 55000, sellMax: 150000 },
             palm: { emoji: '🌴', growTime: 8500, water: 30, cost: 100000, sellMin: 110000, sellMax: 300000 },
             mushroom: { emoji: '🍄', growTime: 9000, water: 8, cost: 250000, sellMin: 275000, sellMax: 750000 },
-            lotus: { emoji: '🪷', growTime: 9500, water: 25, cost: 500000, sellMin: 550000, sellMax: 1500000 },
-            godfruit: { emoji: '🍇', growTime: 15000, water: 50, cost: 25000000, sellMin: 26000000, sellMax: 41000000 },
+            lotus: { emoji: '💮', growTime: 9500, water: 25, cost: 500000, sellMin: 550000, sellMax: 1500000 },
             ancient: { emoji: '🌲', growTime: 15000, water: 60, cost: 2500000, sellMin: 2750000, sellMax: 4100000 },
-            crystal: { emoji: '🪷', growTime: 15000, water: 70, cost: 5000000, sellMin: 5500000, sellMax: 8200000 },
-            void: { emoji: '🫐', growTime: 15000, water: 80, cost: 15000000, sellMin: 16500000, sellMax: 24600000 },
-            cosmic: { emoji: '🌌', growTime: 15000, water: 100, cost: 60000000, sellMin: 66000000, sellMax: 98000000 }
+            crystal: { emoji: '💎', growTime: 15000, water: 70, cost: 5000000, sellMin: 5500000, sellMax: 8200000 },
+            void: { emoji: '⚫', growTime: 15000, water: 80, cost: 15000000, sellMin: 16500000, sellMax: 24600000 },
+            godfruit: { emoji: '🍇', growTime: 15000, water: 50, cost: 25000000, sellMin: 26000000, sellMax: 41000000 },
+            cosmic: { emoji: '🌌', growTime: 15000, water: 100, cost: 60000000, sellMin: 66000000, sellMax: 98000000 },
+            stardust: { emoji: '✨', growTime: 15000, water: 105, cost: 75000000, sellMin: 82500000, sellMax: 122500000 },
+            cosmos: { emoji: '💐', growTime: 15000, water: 90, cost: 80000000, sellMin: 88000000, sellMax: 130400000 },
+            supernova: { emoji: '💥', growTime: 15000, water: 95, cost: 90000000, sellMin: 99000000, sellMax: 146700000 },
+            voidseeker: { emoji: '🌀', growTime: 15000, water: 100, cost: 110000000, sellMin: 121000000, sellMax: 179300000 },
+            galaxycore: { emoji: '🌌', growTime: 15000, water: 105, cost: 120000000, sellMin: 132000000, sellMax: 195600000 },
+            solarwind: { emoji: '🌪️', growTime: 15000, water: 110, cost: 130000000, sellMin: 143000000, sellMax: 211900000 },
+            lunarfrost: { emoji: '🌨️', growTime: 15000, water: 115, cost: 140000000, sellMin: 154000000, sellMax: 228200000 },
+            quasar: { emoji: '💫', growTime: 15000, water: 115, cost: 150000000, sellMin: 165000000, sellMax: 245000000 },
+            starlight: { emoji: '🌟', growTime: 15000, water: 125, cost: 160000000, sellMin: 176000000, sellMax: 260800000 },
+            nebulabloom: { emoji: '🌠', growTime: 15000, water: 130, cost: 175000000, sellMin: 192500000, sellMax: 285250000 },
+            quantum: { emoji: '⚛️', growTime: 15000, water: 135, cost: 190000000, sellMin: 209000000, sellMax: 309400000 },
+            blackhole: { emoji: '🕳️', growTime: 15000, water: 120, cost: 200000000, sellMin: 220000000, sellMax: 326000000 },
+            solarflare: { emoji: '☀️', growTime: 15000, water: 125, cost: 250000000, sellMin: 275000000, sellMax: 408000000 },
+            moonstone: { emoji: '🌙', growTime: 15000, water: 130, cost: 300000000, sellMin: 330000000, sellMax: 489000000 },
+            aurora: { emoji: '🌈', growTime: 15000, water: 135, cost: 400000000, sellMin: 440000000, sellMax: 652000000 },
+            tesseract: { emoji: '🔷', growTime: 15000, water: 140, cost: 500000000, sellMin: 550000000, sellMax: 815000000 },
+            dragonfruit: { emoji: '🐉', growTime: 15000, water: 145, cost: 750000000, sellMin: 825000000, sellMax: 1222500000 },
+            phoenix: { emoji: '🔥', growTime: 15000, water: 150, cost: 1000000000, sellMin: 1100000000, sellMax: 1630000000 },
+            unicorn: { emoji: '🦄', growTime: 15000, water: 155, cost: 1250000000, sellMin: 1375000000, sellMax: 2037500000 },
+            kraken: { emoji: '🐙', growTime: 15000, water: 160, cost: 1500000000, sellMin: 1650000000, sellMax: 2445000000 },
+            leviathan: { emoji: '🐋', growTime: 15000, water: 165, cost: 2000000000, sellMin: 2200000000, sellMax: 3260000000 },
+            pegasus: { emoji: '🦋', growTime: 15000, water: 170, cost: 2500000000, sellMin: 2750000000, sellMax: 4075000000 },
+            chimera: { emoji: '🦁', growTime: 15000, water: 175, cost: 3000000000, sellMin: 3300000000, sellMax: 4890000000 },
+            sphinx: { emoji: '🐪', growTime: 15000, water: 180, cost: 4000000000, sellMin: 4400000000, sellMax: 6520000000 },
+            hydra: { emoji: '🐍', growTime: 15000, water: 185, cost: 5000000000, sellMin: 5500000000, sellMax: 8150000000 },
+            medusa: { emoji: '🐍', growTime: 15000, water: 190, cost: 7500000000, sellMin: 8250000000, sellMax: 12225000000 },
+            zeus: { emoji: '⚡', growTime: 15000, water: 195, cost: 10000000000, sellMin: 11000000000, sellMax: 16300000000 },
+            odin: { emoji: '👁️', growTime: 15000, water: 200, cost: 15000000000, sellMin: 16500000000, sellMax: 24450000000 },
+            ra: { emoji: '☀️', growTime: 15000, water: 205, cost: 20000000000, sellMin: 22000000000, sellMax: 32600000000 },
         };
         
         this.mutations = {
@@ -95,6 +124,7 @@ class Garden {
     
     init() {
         this.createGarden();
+        this.generateSeedButtons(); // generate seed buttons sorted by cost before wiring listeners
         this.setupEventListeners();
         this.loadGame(); // Load saved game before updating stats
         this.updateStats();
@@ -252,7 +282,24 @@ class Garden {
             }
         }
     }
-    
+
+    // Generate seed buttons sorted by cost (lowest → highest)
+    generateSeedButtons() {
+        const container = document.querySelector('.seed-options');
+        if (!container) return;
+        const entries = Object.entries(this.plants).map(([key, val]) => ({ key, cost: val.cost || Infinity, emoji: val.emoji || '' }));
+        // The sorting logic below ensures seeds are ordered from lowest to highest cost.
+        entries.sort((a, b) => a.cost - b.cost); 
+        container.innerHTML = '';
+        entries.forEach(e => {
+            const label = e.key.charAt(0).toUpperCase() + e.key.slice(1);
+            const active = e.key === this.selectedSeed ? ' active' : '';
+            container.insertAdjacentHTML('beforeend',
+                `<button class="seed-btn${active}" data-plant="${e.key}">${e.emoji} ${label} (${(e.cost||0).toLocaleString()}₪)</button>`
+            );
+        });
+    }
+
     setupEventListeners() {
         // Seed selection
         document.querySelectorAll('.seed-btn').forEach(btn => {
@@ -962,10 +1009,14 @@ class Garden {
         waterBtn.disabled = this.waterLevel >= 100;
 
         // Update seed button availability
-        document.querySelectorAll('.seed-btn').forEach(btn => {
+        const seedButtons = document.querySelectorAll('.seed-btn');
+        seedButtons?.forEach(btn => {
             const plantType = btn.dataset.plant;
-            const canAfford = this.money >= this.plants[plantType].cost;
-            btn.disabled = !canAfford;
+            const plantData = this.plants[plantType];
+            if (plantData) {
+                const canAfford = this.money >= plantData.cost;
+                btn.disabled = !canAfford;
+            }
         });
 
         // Update sell button
