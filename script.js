@@ -129,6 +129,11 @@ class Garden {
         localStorage.setItem('gardenSaveGame', JSON.stringify(gameState));
     }
 
+    // Add auto-save trigger method
+    autoSave() {
+        this.saveGame();
+    }
+
     loadGame() {
         const savedGame = localStorage.getItem('gardenSaveGame');
         if (!savedGame) return;
@@ -521,6 +526,10 @@ class Garden {
     }
 
     applyRainMutations() {
+        // Auto-water during rain
+        this.waterLevel = Math.min(100, this.waterLevel + 5);
+        this.updateStats();
+        
         this.plots.forEach(row => {
             row.forEach(plotData => {
                 if (plotData.stage === 'mature' && Math.random() < 0.55) {
@@ -689,9 +698,9 @@ class Garden {
         const plot = plotData.element;
         
         const plantCost = this.plants[this.selectedSeed].cost;
-        const waterCost = this.plants[this.selectedSeed].water;
+        const waterCost = 1;
         
-        if (plotData.planted || this.waterLevel < waterCost || this.money < plantCost) {
+        if (plotData.planted || this.waterLevel < 20 || this.money < plantCost) {
             return;
         }
         
@@ -702,17 +711,14 @@ class Garden {
         plotData.mutations = [];
         plotData.isFavorited = false;
         
-        // Check for chakra mutation on planting
         if (Math.random() < 0.002) {
             plotData.mutations.push('chakra');
         }
         
-        // Check for corrupt mutation on planting
         if (Math.random() < 0.0005) {
             plotData.mutations.push('corrupt');
         }
         
-        // Check for godfruit purchase badge
         if (this.selectedSeed === 'godfruit') {
             this.updateBadgeProgress('iDidIt', 1);
         }
@@ -720,19 +726,17 @@ class Garden {
         plot.className = 'plot growing';
         plot.innerHTML = '<div class="plant">🌱</div>';
         
-        // Consume resources
         this.waterLevel -= waterCost;
         this.money -= plantCost;
         this.plantCount++;
         this.updateStats();
         
-        // Grow the plant
+        // Auto-save after planting
+        this.autoSave();
+        
         setTimeout(() => {
             this.growPlant(row, col);
         }, this.plants[this.selectedSeed].growTime);
-        
-        // Save after planting
-        this.saveGame();
     }
     
     growPlant(row, col) {
@@ -820,7 +824,6 @@ class Garden {
         this.waterLevel = Math.min(100, this.waterLevel + 30);
         this.updateStats();
         
-        // Add visual water effect
         document.querySelectorAll('.plot').forEach(plot => {
             plot.style.animation = 'none';
             setTimeout(() => {
@@ -828,12 +831,14 @@ class Garden {
             }, 10);
         });
         
-        // Animate water button
         const waterBtn = document.getElementById('water-btn');
         waterBtn.style.transform = 'scale(0.95)';
         setTimeout(() => {
             waterBtn.style.transform = '';
         }, 150);
+        
+        // Auto-save after watering
+        this.autoSave();
     }
     
     sellAllMaturePlants() {
@@ -848,17 +853,14 @@ class Garden {
                     const plant = this.plants[plotData.plant];
                     let baseSellPrice = Math.floor(Math.random() * (plant.sellMax - plant.sellMin + 1)) + plant.sellMin;
                     
-                    // Count carrots for badge
                     if (plotData.plant === 'carrot') {
                         carrotsSold++;
                     }
                     
-                    // Check for rainbow mutation for badge
                     if (plotData.mutations.includes('rainbow')) {
                         rainbowSold = true;
                     }
                     
-                    // Clear the plot
                     plotData.planted = false;
                     plotData.plant = null;
                     plotData.stage = 'empty';
@@ -867,7 +869,6 @@ class Garden {
                     plotData.element.className = 'plot empty';
                     plotData.element.innerHTML = '';
                     
-                    // Calculate sell price
                     let totalMultiplier = 1;
                     plotData.mutations.forEach(mutationType => {
                         if (this.mutations[mutationType]) {
@@ -882,7 +883,6 @@ class Garden {
             });
         });
 
-        // Update badge progress
         if (carrotsSold > 0) {
             this.badges.carrotCaretaker.progress += carrotsSold;
             if (this.badges.carrotCaretaker.progress >= this.badges.carrotCaretaker.target && !this.badges.carrotCaretaker.earned) {
@@ -902,10 +902,9 @@ class Garden {
             this.plantCount -= soldCount;
             this.updateStats();
             
-            // Save after selling
-            this.saveGame();
+            // Auto-save after selling
+            this.autoSave();
             
-            // Show earnings animation
             const sellBtn = document.getElementById('sell-all-btn');
             sellBtn.style.transform = 'scale(0.95)';
             sellBtn.textContent = `💰 +${totalEarnings.toLocaleString()}₪`;
@@ -939,8 +938,10 @@ class Garden {
         document.querySelector('[data-plant="carrot"]').classList.add('active');
         this.updateStats();
         
-        // Clear saved game
         localStorage.removeItem('gardenSaveGame');
+        
+        // Auto-save after reset (clear save)
+        this.autoSave();
     }
     
     startWaterDecay() {
@@ -949,7 +950,7 @@ class Garden {
                 this.waterLevel = Math.max(0, this.waterLevel - 1);
                 this.updateStats();
             }
-        }, 3000);
+        }, 6000); // Changed from 3000 to 6000 (10 minutes total: 100 water / 1 per 6 seconds = 10 minutes)
     }
     
     updateStats() {

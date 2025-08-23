@@ -33,6 +33,33 @@ header p {
     font-size: 1.1rem;
 }
 
+.instructions {
+    font-size: 1.4rem;
+    color: #4a7a4a;
+    font-weight: 600;
+    margin: 15px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.beta-info {
+    color: #7a9a7a;
+    font-size: 1.8rem;
+    margin-bottom: 5px;
+    font-style: italic;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.disclaimer {
+    color: #666;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 15px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
 .garden-grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
@@ -631,6 +658,16 @@ header p {
 .modal-close-btn:hover {
     background: #ff5252;
     transform: translateY(-2px);
+}
+
+.bug-report {
+    color: #d9534f;
+    font-size: 1.4rem;
+    margin-top: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 @media (max-width: 768px) {
