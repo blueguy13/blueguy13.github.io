@@ -1,3 +1,7 @@
+import { WebsimSocket } from '@websim/websim-socket';
+
+const room = new WebsimSocket(); // Instantiate WebsimSocket globally
+
 class Garden {
     constructor() {
         this.gridSize = { rows: 6, cols: 8 };
@@ -6,6 +10,12 @@ class Garden {
         this.plantCount = 0;
         this.waterLevel = 100;
         this.money = 10;
+        this.totalPlaytimeSeconds = 0;
+        this.highestMoney = 10; // Track highest money for leaderboard
+
+        this.currentUser = null; // Stores game_user data {id, nickname, password, websim_username}
+        this.websimCurrentUser = null; // Stores {id, username} from window.websim.getCurrentUser()
+        
         this.plants = {
             carrot: { emoji: '🥕', growTime: 2000, water: 5, cost: 10, sellMin: 11, sellMax: 35 },
             sunflower: { emoji: '🌻', growTime: 3500, water: 10, cost: 50, sellMin: 55, sellMax: 150 },
@@ -122,142 +132,329 @@ class Garden {
         this.init();
     }
     
-    init() {
+    async init() {
         this.createGarden();
-        this.generateSeedButtons(); // generate seed buttons sorted by cost before wiring listeners
+        this.generateSeedButtons();
         this.setupEventListeners();
-        this.loadGame(); // Load saved game before updating stats
-        this.updateStats();
-        this.updateWeatherDisplay();
+        
+        this.websimCurrentUser = await window.websim.getCurrentUser();
+        if (!this.websimCurrentUser || !this.websimCurrentUser.id) {
+            console.error("Websim user not available. Cannot proceed with game.");
+            alert("Websim user not available. Please ensure you are logged into Websim.");
+            return;
+        }
+
+        // Try to auto-login the user based on local storage
+        const storedGameUserId = localStorage.getItem('gardenGameUserId');
+        if (storedGameUserId === this.websimCurrentUser.id) {
+            await this.loginGameUser(storedGameUserId);
+        } else {
+            this.showLoginModal();
+        }
+
         this.startWaterDecay();
         this.startWeatherSystem();
         this.startAutoSave();
+        this.startPlaytimeTracker();
     }
 
-    saveGame() {
-        const gameState = {
-            money: this.money,
-            plantCount: this.plantCount,
-            waterLevel: this.waterLevel,
-            selectedSeed: this.selectedSeed,
-            currentWeather: this.currentWeather,
-            weatherDuration: this.weatherDuration,
+    // --- User Management and Login ---
+    async loginGameUser(userId) {
+        const gameUser = await room.collection('game_users').filter({ id: userId }).getList();
+        if (gameUser && gameUser.length > 0) {
+            this.currentUser = gameUser[0];
+            localStorage.setItem('gardenGameUserId', this.currentUser.id);
+            document.getElementById('login-logout-btn').textContent = `👤 Logged in as ${this.currentUser.nickname}`;
+            document.getElementById('login-modal').classList.add('hidden');
+            document.body.classList.remove('modal-open');
+            await this.loadGame();
+        } else {
+            console.error("Game user not found for ID:", userId);
+            this.showLoginModal("User not found. Please register or re-enter details.");
+        }
+    }
+
+    async registerOrLoginGameUser(nickname, password) {
+        if (!this.websimCurrentUser) return;
+
+        const websimUserId = this.websimCurrentUser.id;
+        const existingGameUser = await room.collection('game_users').filter({ id: websimUserId }).getList();
+        const loginErrorElement = document.getElementById('login-error');
+
+        if (existingGameUser && existingGameUser.length > 0) {
+            // User exists, attempt login
+            const user = existingGameUser[0];
+            if (user.password === password) {
+                this.currentUser = user;
+                localStorage.setItem('gardenGameUserId', this.currentUser.id);
+                document.getElementById('login-modal').classList.add('hidden');
+                document.body.classList.remove('modal-open');
+                await this.loadGame();
+            } else {
+                loginErrorElement.textContent = "Incorrect password. Please try again.";
+            }
+        } else {
+            // New user, register
+            const newGameUser = await room.collection('game_users').upsert({
+                id: websimUserId,
+                nickname: nickname,
+                password: password, // WARNING: Plain text password for demo, hash in production!
+                websim_username: this.websimCurrentUser.username
+            });
+            
+            // Create initial game state for new user
+            await room.collection('game_states').upsert({
+                id: websimUserId,
+                game_user_id: websimUserId,
+                highest_money: 10,
+                total_playtime_seconds: 0,
+                last_played_at: new Date().toISOString()
+            });
+
+            this.currentUser = newGameUser;
+            localStorage.setItem('gardenGameUserId', this.currentUser.id);
+            document.getElementById('login-modal').classList.add('hidden');
+            document.body.classList.remove('modal-open');
+            await this.loadGame(); // Load initial state for new user
+        }
+        this.updateLoginButtonText();
+    }
+
+    async logoutGameUser() {
+        this.currentUser = null;
+        this.money = 10;
+        this.plantCount = 0;
+        this.waterLevel = 100;
+        this.totalPlaytimeSeconds = 0;
+        this.highestMoney = 10;
+        this.plots = []; // Clear current garden plots
+        localStorage.removeItem('gardenGameUserId');
+        localStorage.removeItem('gardenSaveGame_local'); // Clear local plot data
+        this.createGarden(); // Re-initialize empty garden plots
+        this.updateStats();
+        this.updateLoginButtonText();
+        this.showLoginModal("Logged out successfully. Please log in or register.");
+    }
+
+    showLoginModal(message = "") {
+        const loginModal = document.getElementById('login-modal');
+        const loginMessage = document.getElementById('login-message');
+        const nicknameInput = document.getElementById('nickname-input');
+        const passwordInput = document.getElementById('password-input');
+        const submitBtn = document.getElementById('login-submit-btn');
+        const logoutConfirmBtn = document.getElementById('logout-confirm-btn');
+        const loginError = document.getElementById('login-error');
+
+        loginError.textContent = "";
+        loginMessage.textContent = message;
+
+        loginModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+
+        // Check if user is already logged in (meaning `currentUser` is set)
+        if (this.currentUser) {
+            loginMessage.textContent = `You are logged in as ${this.currentUser.nickname}. Do you want to logout?`;
+            nicknameInput.classList.add('hidden');
+            passwordInput.classList.add('hidden');
+            submitBtn.classList.add('hidden');
+            logoutConfirmBtn.classList.remove('hidden');
+            
+            // Re-assign handler to prevent multiple listeners
+            logoutConfirmBtn.onclick = async () => {
+                await this.logoutGameUser();
+                logoutConfirmBtn.onclick = null; // Clear handler
+            };
+
+        } else {
+            loginMessage.textContent = message || "Please enter a nickname and password to start your garden!";
+            nicknameInput.value = "";
+            passwordInput.value = "";
+            nicknameInput.classList.remove('hidden');
+            passwordInput.classList.remove('hidden');
+            submitBtn.classList.remove('hidden');
+            logoutConfirmBtn.classList.add('hidden');
+
+            submitBtn.onclick = async () => {
+                const nickname = nicknameInput.value.trim();
+                const password = passwordInput.value.trim();
+                if (nickname && password) {
+                    await this.registerOrLoginGameUser(nickname, password);
+                } else {
+                    loginError.textContent = "Nickname and password cannot be empty.";
+                }
+            };
+        }
+    }
+
+    updateLoginButtonText() {
+        const loginLogoutBtn = document.getElementById('login-logout-btn');
+        if (this.currentUser && this.currentUser.nickname) {
+            loginLogoutBtn.textContent = `👤 ${this.currentUser.nickname}`;
+        } else {
+            loginLogoutBtn.textContent = `👤 Login/Register`;
+        }
+        // Disable game controls if not logged in
+        this.toggleGameControls(!!this.currentUser);
+    }
+
+    toggleGameControls(enabled) {
+        const controls = document.querySelectorAll('.controls button:not(#login-logout-btn):not(#badges-btn):not(#leaderboard-btn), .seed-options button');
+        controls.forEach(btn => {
+            btn.disabled = !enabled;
+        });
+        // Special case for seed buttons which also have money checks
+        this.generateSeedButtons(); // regenerate to update disabled state based on money too
+    }
+
+    // --- Game State Saving/Loading ---
+    async saveGame() {
+        if (!this.currentUser) return; // Cannot save if no user is logged in
+
+        // Save plot data locally for transient state (garden layout, individual plant stages)
+        const localGameState = {
             plots: this.plots.map(row => 
                 row.map(plot => ({
                     planted: plot.planted,
                     plant: plot.plant,
                     stage: plot.stage,
                     mutations: plot.mutations,
-                    isFavorited: plot.isFavorited
+                    isFavorited: plot.isFavorited,
+                    lastClickTime: plot.lastClickTime
                 }))
             ),
+            selectedSeed: this.selectedSeed,
             badges: this.badges,
             newBadgeCount: this.newBadgeCount,
             timestamp: Date.now()
         };
-        
-        localStorage.setItem('gardenSaveGame', JSON.stringify(gameState));
+        localStorage.setItem('gardenSaveGame_local', JSON.stringify(localGameState));
+
+        // Save persistent game state to WebsimSocket for leaderboard/long-term
+        await room.collection('game_states').upsert({
+            id: this.currentUser.id, // Use Websim user ID as primary key for game state
+            game_user_id: this.currentUser.id,
+            highest_money: this.highestMoney,
+            total_playtime_seconds: this.totalPlaytimeSeconds,
+            last_played_at: new Date().toISOString()
+        });
     }
 
-    // Add auto-save trigger method
-    autoSave() {
-        this.saveGame();
-    }
+    async loadGame() {
+        if (!this.currentUser) return;
 
-    loadGame() {
-        const savedGame = localStorage.getItem('gardenSaveGame');
-        if (!savedGame) return;
-
-        try {
-            const gameState = JSON.parse(savedGame);
-            
-            // Load basic stats
-            this.money = gameState.money || 10;
-            this.plantCount = gameState.plantCount || 0;
-            this.waterLevel = gameState.waterLevel || 100;
-            this.selectedSeed = gameState.selectedSeed || 'carrot';
-            this.currentWeather = gameState.currentWeather || 'normal';
-            this.weatherDuration = gameState.weatherDuration || 0;
-            
-            // Load plots if they exist
-            if (gameState.plots && gameState.plots.length === this.gridSize.rows) {
-                gameState.plots.forEach((row, rowIndex) => {
-                    if (row.length === this.gridSize.cols) {
-                        row.forEach((plotData, colIndex) => {
-                            const plot = this.plots[rowIndex][colIndex];
-                            plot.planted = plotData.planted || false;
-                            plot.plant = plotData.plant || null;
-                            plot.stage = plotData.stage || 'empty';
-                            plot.mutations = plotData.mutations || [];
-                            plot.isFavorited = plotData.isFavorited || false;
-                            
-                            // Update visual display
-                            this.updatePlotVisualFromSave(plot);
-                            
-                            // If plant is growing, resume growth timer
-                            if (plot.stage === 'growing' && plot.plant) {
-                                setTimeout(() => {
-                                    this.growPlant(rowIndex, colIndex);
-                                }, this.plants[plot.plant].growTime / 2); // Resume with half time
-                            }
-                        });
-                    }
-                });
-            }
-            
-            // Load badges
-            if (gameState.badges) {
-                Object.keys(gameState.badges).forEach(badgeKey => {
-                    if (this.badges[badgeKey]) {
-                        this.badges[badgeKey] = { ...this.badges[badgeKey], ...gameState.badges[badgeKey] };
-                    }
-                });
-            }
-            
-            this.newBadgeCount = gameState.newBadgeCount || 0;
-            this.updateBadgeButton();
-            
-            // Update selected seed button
-            document.querySelector('.seed-btn.active')?.classList.remove('active');
-            document.querySelector(`[data-plant="${this.selectedSeed}"]`)?.classList.add('active');
-            
-        } catch (error) {
-            console.error('Failed to load save game:', error);
+        // Load persistent game state from WebsimSocket
+        const dbGameState = await room.collection('game_states').filter({ id: this.currentUser.id }).getList();
+        if (dbGameState && dbGameState.length > 0) {
+            this.highestMoney = dbGameState[0].highest_money || 10;
+            this.totalPlaytimeSeconds = dbGameState[0].total_playtime_seconds || 0;
+        } else {
+            // Create a default game state if none exists for this user
+            await room.collection('game_states').upsert({
+                id: this.currentUser.id,
+                game_user_id: this.currentUser.id,
+                highest_money: 10,
+                total_playtime_seconds: 0,
+                last_played_at: new Date().toISOString()
+            });
         }
+        
+        // Load local plot data
+        const localSavedGame = localStorage.getItem('gardenSaveGame_local');
+        if (localSavedGame) {
+            try {
+                const localGameState = JSON.parse(localSavedGame);
+                this.money = localGameState.money || 10; // Money is loaded from local if available, else starts at 10
+                this.plantCount = localGameState.plantCount || 0; // Not explicitly saved in local, but can be derived
+                this.waterLevel = localGameState.waterLevel || 100;
+                this.selectedSeed = localGameState.selectedSeed || 'carrot';
+                // currentWeather, weatherDuration are not part of local save
+
+                // Load plots if they exist
+                if (localGameState.plots && localGameState.plots.length === this.gridSize.rows) {
+                    localGameState.plots.forEach((row, rowIndex) => {
+                        if (row.length === this.gridSize.cols) {
+                            row.forEach((plotData, colIndex) => {
+                                const plot = this.plots[rowIndex][colIndex];
+                                plot.planted = plotData.planted || false;
+                                plot.plant = plotData.plant || null;
+                                plot.stage = plotData.stage || 'empty';
+                                plot.mutations = plotData.mutations || [];
+                                plot.isFavorited = plotData.isFavorited || false;
+                                plot.lastClickTime = plotData.lastClickTime || 0;
+                                
+                                this.updatePlotVisualFromSave(plot);
+                                
+                                if (plot.stage === 'growing' && plot.plant) {
+                                    setTimeout(() => {
+                                        this.growPlant(rowIndex, colIndex);
+                                    }, this.plants[plot.plant].growTime / 2); // Resume with half time
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                if (localGameState.badges) {
+                    Object.keys(localGameState.badges).forEach(badgeKey => {
+                        if (this.badges[badgeKey]) {
+                            this.badges[badgeKey] = { ...this.badges[badgeKey], ...localGameState.badges[badgeKey] };
+                        }
+                    });
+                }
+                this.newBadgeCount = localGameState.newBadgeCount || 0;
+            } catch (error) {
+                console.error('Failed to load local save game:', error);
+            }
+        }
+        
+        this.updateBadgeButton();
+        document.querySelector('.seed-btn.active')?.classList.remove('active');
+        document.querySelector(`[data-plant="${this.selectedSeed}"]`)?.classList.add('active');
+        this.updateStats();
+        this.toggleGameControls(true); // Enable controls after loading
     }
 
-    updatePlotVisualFromSave(plotData) {
-        const plot = plotData.element;
-        
-        if (plotData.stage === 'empty') {
-            plot.className = 'plot empty';
-            plot.innerHTML = '';
-        } else if (plotData.stage === 'growing') {
-            plot.className = 'plot growing';
-            plot.innerHTML = '<div class="plant">🌱</div>';
-        } else if (plotData.stage === 'mature') {
-            this.updatePlotDisplay(plotData);
-        } else if (plotData.stage === 'withered') {
-            plot.className = 'plot withered';
-            plot.innerHTML = '<div class="plant">🥀</div>';
+    autoSave() {
+        if (this.currentUser) {
+            this.saveGame();
         }
     }
 
     startAutoSave() {
-        // Auto-save every 30 seconds
         setInterval(() => {
-            this.saveGame();
-        }, 30000);
+            this.autoSave();
+        }, 30000); // Auto-save every 30 seconds
         
-        // Save when page is about to unload
         window.addEventListener('beforeunload', () => {
-            this.saveGame();
+            this.autoSave();
         });
+    }
+
+    startPlaytimeTracker() {
+        setInterval(() => {
+            if (this.currentUser) {
+                this.totalPlaytimeSeconds++;
+                this.updateStats();
+            }
+        }, 1000); // Update every second
+    }
+
+    formatPlaytime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = seconds % 60;
+
+        let formatted = [];
+        if (hours > 0) formatted.push(`${hours}h`);
+        if (minutes > 0) formatted.push(`${minutes}m`);
+        if (remainingSeconds > 0 || formatted.length === 0) formatted.push(`${remainingSeconds}s`);
+        return formatted.join(' ');
     }
     
     createGarden() {
         const garden = document.getElementById('garden');
         garden.innerHTML = '';
+        this.plots = []; // Reset plots array
         
         for (let row = 0; row < this.gridSize.rows; row++) {
             this.plots[row] = [];
@@ -294,8 +491,10 @@ class Garden {
         entries.forEach(e => {
             const label = e.key.charAt(0).toUpperCase() + e.key.slice(1);
             const active = e.key === this.selectedSeed ? ' active' : '';
+            const canAfford = this.money >= e.cost;
+            const disabled = this.currentUser ? (canAfford ? '' : 'disabled') : 'disabled'; // Disable if not logged in
             container.insertAdjacentHTML('beforeend',
-                `<button class="seed-btn${active}" data-plant="${e.key}">${e.emoji} ${label} (${(e.cost||0).toLocaleString()}₪)</button>`
+                `<button class="seed-btn${active}" data-plant="${e.key}" ${disabled}>${e.emoji} ${label} (${(e.cost||0).toLocaleString()}₪)</button>`
             );
         });
     }
@@ -305,7 +504,7 @@ class Garden {
         document.querySelectorAll('.seed-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const plantType = btn.dataset.plant;
-                if (this.money >= this.plants[plantType].cost) {
+                if (this.currentUser && this.money >= this.plants[plantType].cost) {
                     document.querySelector('.seed-btn.active')?.classList.remove('active');
                     btn.classList.add('active');
                     this.selectedSeed = plantType;
@@ -334,12 +533,23 @@ class Garden {
             this.showBadgesModal();
         });
 
+        // Leaderboard button
+        document.getElementById('leaderboard-btn').addEventListener('click', () => {
+            this.showLeaderboardModal();
+        });
+
+        // Login/Logout button
+        document.getElementById('login-logout-btn').addEventListener('click', () => {
+            this.showLoginModal();
+        });
+
         // Save/Load buttons
         const saveBtn = document.getElementById('save-btn');
         const loadBtn = document.getElementById('load-btn');
         
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
+                if (!this.currentUser) return;
                 this.saveGame();
                 saveBtn.textContent = '💾 Saved!';
                 setTimeout(() => {
@@ -349,8 +559,9 @@ class Garden {
         }
         
         if (loadBtn) {
-            loadBtn.addEventListener('click', () => {
-                this.loadGame();
+            loadBtn.addEventListener('click', async () => {
+                if (!this.currentUser) return;
+                await this.loadGame();
                 this.updateStats();
                 loadBtn.textContent = '📁 Loaded!';
                 setTimeout(() => {
@@ -407,6 +618,63 @@ class Garden {
         document.body.appendChild(modal);
     }
 
+    async showLeaderboardModal() {
+        const leaderboardModal = document.getElementById('leaderboard-modal');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const closeBtn = document.getElementById('leaderboard-close-btn');
+
+        leaderboardList.innerHTML = '<div class="leaderboard-header"><div>Name</div><div>Highest Money</div><div>Playtime</div></div><p>Loading...</p>';
+        leaderboardModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+
+        // Fetch all game states and game users
+        const gameStates = await room.collection('game_states').getList();
+        const gameUsers = await room.collection('game_users').getList();
+
+        // Map gameUsers by ID for easy lookup
+        const usersMap = new Map(gameUsers.map(user => [user.id, user]));
+
+        const leaderboardData = gameStates
+            .map(state => {
+                const user = usersMap.get(state.game_user_id);
+                if (user) {
+                    return {
+                        nickname: user.nickname,
+                        highestMoney: state.highest_money || 0,
+                        totalPlaytimeSeconds: state.total_playtime_seconds || 0,
+                        isCurrentUser: this.currentUser && user.id === this.currentUser.id
+                    };
+                }
+                return null;
+            })
+            .filter(Boolean) // Remove null entries
+            .sort((a, b) => {
+                // Sort by highest money (descending)
+                if (b.highestMoney !== a.highestMoney) {
+                    return b.highestMoney - a.highestMoney;
+                }
+                // Then by playtime (descending)
+                return b.totalPlaytimeSeconds - a.totalPlaytimeSeconds;
+            });
+
+        leaderboardList.innerHTML = '<div class="leaderboard-header"><div>Name</div><div>Highest Money</div><div>Playtime</div></div>';
+        leaderboardData.forEach(entry => {
+            const row = document.createElement('div');
+            row.className = `leaderboard-item ${entry.isCurrentUser ? 'you' : ''}`;
+            row.innerHTML = `
+                <div>${entry.nickname}</div>
+                <div>${entry.highestMoney.toLocaleString()}₪</div>
+                <div>${this.formatPlaytime(entry.totalPlaytimeSeconds)}</div>
+            `;
+            leaderboardList.appendChild(row);
+        });
+
+        closeBtn.onclick = () => {
+            leaderboardModal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+        };
+    }
+
     checkBadges() {
         // Carrot Caretaker - this gets updated in sellAllMaturePlants
         this.updateBadgeProgress('deepPockets', this.money);
@@ -427,7 +695,12 @@ class Garden {
         const badge = this.badges[badgeKey];
         if (!badge || badge.earned) return;
         
-        badge.progress = Math.max(badge.progress, newProgress);
+        // Special handling for 'iDidIt' badge to set progress to 1 on trigger
+        if (badgeKey === 'iDidIt') {
+            badge.progress = newProgress;
+        } else {
+            badge.progress = Math.max(badge.progress, newProgress);
+        }
         
         if (badge.progress >= badge.target && !badge.earned) {
             badge.earned = true;
@@ -632,6 +905,8 @@ class Garden {
     }
     
     handlePlotClick(event) {
+        if (!this.currentUser) return; // Disable plot interaction if not logged in
+
         const plot = event.currentTarget;
         const row = parseInt(plot.dataset.row);
         const col = parseInt(plot.dataset.col);
@@ -866,7 +1141,7 @@ class Garden {
     }
     
     waterGarden() {
-        if (this.waterLevel >= 100) return;
+        if (!this.currentUser || this.waterLevel >= 100) return;
         
         this.waterLevel = Math.min(100, this.waterLevel + 30);
         this.updateStats();
@@ -889,6 +1164,8 @@ class Garden {
     }
     
     sellAllMaturePlants() {
+        if (!this.currentUser) return;
+
         let totalEarnings = 0;
         let soldCount = 0;
         let carrotsSold = 0;
@@ -908,14 +1185,6 @@ class Garden {
                         rainbowSold = true;
                     }
                     
-                    plotData.planted = false;
-                    plotData.plant = null;
-                    plotData.stage = 'empty';
-                    plotData.mutations = [];
-                    plotData.isFavorited = false;
-                    plotData.element.className = 'plot empty';
-                    plotData.element.innerHTML = '';
-                    
                     let totalMultiplier = 1;
                     plotData.mutations.forEach(mutationType => {
                         if (this.mutations[mutationType]) {
@@ -926,6 +1195,15 @@ class Garden {
                     let sellPrice = Math.floor(baseSellPrice * totalMultiplier);
                     totalEarnings += sellPrice;
                     soldCount++;
+
+                    // Reset plot state after selling
+                    plotData.planted = false;
+                    plotData.plant = null;
+                    plotData.stage = 'empty';
+                    plotData.mutations = [];
+                    plotData.isFavorited = false;
+                    plotData.element.className = 'plot empty';
+                    plotData.element.innerHTML = '';
                 }
             });
         });
@@ -962,7 +1240,9 @@ class Garden {
         }
     }
 
-    resetGarden() {
+    async resetGarden() {
+        if (!this.currentUser) return;
+
         this.plots.forEach(row => {
             row.forEach(plotData => {
                 plotData.planted = false;
@@ -981,11 +1261,29 @@ class Garden {
         this.selectedSeed = 'carrot';
         this.currentWeather = 'normal';
         this.weatherDuration = 0;
+        this.badges = Object.fromEntries(
+            Object.entries(this.badges).map(([key, badge]) => [key, { ...badge, earned: false, progress: 0 }])
+        );
+        this.newBadgeCount = 0;
+
         document.querySelector('.seed-btn.active')?.classList.remove('active');
         document.querySelector('[data-plant="carrot"]').classList.add('active');
-        this.updateStats();
         
-        localStorage.removeItem('gardenSaveGame');
+        localStorage.removeItem('gardenSaveGame_local'); // Clear local plot data
+
+        // Reset persistent data in DB
+        await room.collection('game_states').upsert({
+            id: this.currentUser.id,
+            game_user_id: this.currentUser.id,
+            highest_money: 10,
+            total_playtime_seconds: 0,
+            last_played_at: new Date().toISOString()
+        });
+
+        this.highestMoney = 10;
+        this.totalPlaytimeSeconds = 0;
+        this.updateStats();
+        this.updateBadgeButton();
         
         // Auto-save after reset (clear save)
         this.autoSave();
@@ -993,7 +1291,7 @@ class Garden {
     
     startWaterDecay() {
         setInterval(() => {
-            if (this.waterLevel > 0) {
+            if (this.currentUser && this.waterLevel > 0) {
                 this.waterLevel = Math.max(0, this.waterLevel - 1);
                 this.updateStats();
             }
@@ -1004,9 +1302,33 @@ class Garden {
         document.getElementById('plant-count').textContent = this.plantCount;
         document.getElementById('water-level').textContent = this.waterLevel;
         document.getElementById('money').textContent = this.money.toLocaleString();
+        document.getElementById('playtime').textContent = this.formatPlaytime(this.totalPlaytimeSeconds);
         
+        // Update highest money
+        if (this.money > this.highestMoney) {
+            this.highestMoney = this.money;
+            this.autoSave(); // Save to DB if highest money changes
+        }
+
         const waterBtn = document.getElementById('water-btn');
-        waterBtn.disabled = this.waterLevel >= 100;
+        const sellBtn = document.getElementById('sell-all-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const loadBtn = document.getElementById('load-btn');
+        const badgesBtn = document.getElementById('badges-btn');
+        const leaderboardBtn = document.getElementById('leaderboard-btn');
+        
+        // Disable all main game buttons if not logged in
+        const gameActive = !!this.currentUser;
+        waterBtn.disabled = !gameActive || this.waterLevel >= 100;
+        sellBtn.disabled = !gameActive || !this.plots.some(row => row.some(plot => plot.stage === 'mature'));
+        resetBtn.disabled = !gameActive;
+        saveBtn.disabled = !gameActive;
+        loadBtn.disabled = !gameActive;
+        // Badges and Leaderboard always accessible
+        badgesBtn.disabled = false;
+        leaderboardBtn.disabled = false;
+
 
         // Update seed button availability
         const seedButtons = document.querySelectorAll('.seed-btn');
@@ -1015,23 +1337,21 @@ class Garden {
             const plantData = this.plants[plantType];
             if (plantData) {
                 const canAfford = this.money >= plantData.cost;
-                btn.disabled = !canAfford;
+                btn.disabled = !gameActive || !canAfford;
+            } else {
+                btn.disabled = !gameActive;
             }
         });
-
-        // Update sell button
-        const sellBtn = document.getElementById('sell-all-btn');
-        const hasMaturePlants = this.plots.some(row => 
-            row.some(plot => plot.stage === 'mature')
-        );
-        sellBtn.disabled = !hasMaturePlants;
         
         // Check badges after stats update
-        this.checkBadges();
+        if (this.currentUser) {
+            this.checkBadges();
+        }
+        this.updateLoginButtonText(); // Update login button text and overall game control toggle
     }
 }
 
 // Initialize the garden when the page loads
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     new Garden();
 });

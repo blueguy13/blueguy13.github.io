@@ -1,0 +1,47 @@
+{
+  "database": {
+    "schema": {
+      "game_users": {
+        "id": {
+          "type": "uuid",
+          "description": "The Websim user ID, serving as the primary key for the game user profile."
+        },
+        "nickname": {
+          "type": "text",
+          "description": "The player's chosen nickname for the game."
+        },
+        "password": {
+          "type": "text",
+          "description": "A simple password for game login. WARNING: Not suitable for production, passwords should be hashed."
+        },
+        "websim_username": {
+          "type": "text",
+          "description": "The actual Websim platform username associated with this game profile."
+        }
+      },
+      "game_states": {
+        "id": {
+          "type": "uuid",
+          "description": "The Websim user ID, serving as the primary key for the game state (1-to-1 with game_users)."
+        },
+        "game_user_id": {
+          "type": "uuid",
+          "description": "Foreign key to the game_users table (same as id)."
+        },
+        "highest_money": {
+          "type": "numeric",
+          "description": "The highest amount of money ever held by this player."
+        },
+        "total_playtime_seconds": {
+          "type": "integer",
+          "description": "The total cumulative playtime for this player in seconds."
+        },
+        "last_played_at": {
+          "type": "timestamptz",
+          "description": "Timestamp of the last time this player's state was updated."
+        }
+      }
+    }
+  }
+}
+
